@@ -6,8 +6,8 @@ import tensorflow as tf
 import json
 
 # Load model và labels
-model = tf.keras.models.load_model("face_recognition_model.h5")
-with open('labels.json', 'r') as f:
+model = tf.keras.models.load_model("face_recognition_model2.h5")
+with open('labels2.json', 'r') as f:
     labels = json.load(f)
 class_names = list(labels.keys())
 
