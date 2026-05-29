@@ -5,57 +5,67 @@ import numpy as np
 import tensorflow as tf
 import json
 
-# 1. Cấu hình trang (Hiện tên trên tab trình duyệt)
+# 1. Cấu hình trang
 st.set_page_config(page_title="AI Face Recognition", page_icon="👤", layout="wide")
 
-# 2. Thêm CSS để giao diện trông hiện đại hơn
+# 2. CSS để căn giữa Title và Subheader, và làm đẹp giao diện
 st.markdown("""
     <style>
-    .main {
-        background-color: #f5f7f9;
+    .stTitle, .stSubheader {
+        text-align: center;
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+        width: 100%;
     }
     .stTitle {
         color: #1E3A8A;
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-        text-align: center;
+        font-weight: bold;
     }
     .stSubheader {
         color: #3B82F6;
-        text-align: center;
+        margin-bottom: 20px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. Sidebar - Nơi để các cài đặt (Trông sẽ rất chuyên nghiệp)
-st.sidebar.title("⚙️ Cài đặt hệ thống")
-st.sidebar.info("Hệ thống nhận diện khuôn mặt Real-time.")
-confidence_threshold = st.sidebar.slider("Độ tin cậy (Confidence)", 0.0, 1.0, 0.5)
+# 3. Sidebar - Chỉ chứa thông tin và Hướng dẫn
+st.sidebar.title("📖 Hướng dẫn sử dụng")
+st.sidebar.markdown("""
+1. Cho phép trình duyệt truy cập **Camera**.
+2. Đứng thẳng trước camera, đảm bảo đủ ánh sáng.
+3. Hệ thống sẽ tự động khoanh vùng khuôn mặt.
+4. Tên và độ tin cậy sẽ hiện ngay trên khung hình.
+---
+**Hệ thống:** MobileNetV2
+**Đầu vào:** 200x200 px
+""")
+
 st.sidebar.divider()
-st.sidebar.write("👤 **Sinh viên thực hiện:** [Trần Ngọc Thảo Anh]")
+st.sidebar.write("👤 **Sinh viên thực hiện:** [Tên của bạn]")
 
 # --- Load Model & Labels ---
-@st.cache_resource # Dùng cache để không load lại model mỗi khi web load lại
+@st.cache_resource
 def load_my_model():
+    # Nhớ kiểm tra đúng tên file bạn đã up lên GitHub
     model = tf.keras.models.load_model("face_recognition_model2.h5")
     with open('labels2.json', 'r', encoding='utf-8') as f:
-        labels = json.load(f)
+        labels_data = json.load(f)
     # Đảo ngược dictionary labels để dùng index tìm tên
-    labels = {v: k for k, v in labels.items()}
+    labels = {v: k for k, v in labels_data.items()}
     return model, labels
 
 model, labels_dict = load_my_model()
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
-# 4. Tiêu đề chính
-st.title(" HỆ THỐNG NHẬN DIỆN KHUÔN MẶT SINH VIÊN LỚP DA0001")
-st.subheader("Đại học Kinh tế Thành phố Hồ Chí Minh")
+# 4. Tiêu đề chính (Đã được căn giữa bằng CSS)
+st.title("🚀 HỆ THỐNG NHẬN DIỆN KHUÔN MẶT")
+st.subheader("Ứng dụng Deep Learning Real-time")
 
-# 5. Chia cột giao diện chính
-col1, col2 = st.columns([2, 1])
+# 5. Khu vực hiển thị Camera (Căn giữa khung hình)
+col1, col2, col3 = st.columns([1, 6, 1]) # Tạo 3 cột để đẩy camera vào giữa
 
-with col1:
-    st.write("### 📹 Camera  ")
-    
+with col2:
     class FaceRecognitionTransformer(VideoTransformerBase):
         def transform(self, frame):
             img = frame.to_ndarray(format="bgr24")
@@ -64,7 +74,7 @@ with col1:
 
             for (x, y, w, h) in faces:
                 roi_color = img[y:y+h, x:x+w]
-                roi_color = cv2.resize(roi_color, (200, 200)) # Khớp với yêu cầu 200x200 của thầy
+                roi_color = cv2.resize(roi_color, (200, 200)) 
                 roi_color = roi_color / 255.0
                 roi_color = np.expand_dims(roi_color, axis=0)
 
@@ -72,18 +82,19 @@ with col1:
                 max_prob = np.max(prediction)
                 index = np.argmax(prediction)
 
-                if max_prob > confidence_threshold:
+                # Mặc định độ tin cậy trên 50% thì mới hiện tên
+                if max_prob > 0.5:
                     name = labels_dict.get(index, "Unknown")
                     
-                    # --- PHẦN CHEAT CỦA BẠN ---
+                    # --- ĐOẠN CHEAT CỦA BẠN ---
                     if index == 29: 
                         name = "Tên_Của_Bạn" 
                     # -------------------------
                     
-                    color = (0, 255, 0) # Màu xanh nếu nhận diện được
+                    color = (0, 255, 0) # Xanh lá
                 else:
                     name = "Unknown"
-                    color = (0, 0, 255) # Màu đỏ nếu không chắc chắn
+                    color = (0, 0, 255) # Đỏ
 
                 cv2.rectangle(img, (x, y), (x+w, y+h), color, 2)
                 cv2.putText(img, f"{name} ({max_prob*100:.1f}%)", (x, y-10), 
@@ -92,15 +103,3 @@ with col1:
             return img
 
     webrtc_streamer(key="face-recognition", video_transformer_factory=FaceRecognitionTransformer)
-
-with col2:
-    st.write("### 📝 Hướng dẫn sử dụng")
-    st.markdown("""
-    1. Cho phép trình duyệt truy cập **Camera**.
-    2. Đứng thẳng trước camera, đảm bảo đủ ánh sáng.
-    3. Hệ thống sẽ tự động khoanh vùng và hiện tên.
-    4. Bạn có thể chỉnh **Độ tin cậy** ở thanh bên trái để lọc bớt các kết quả sai.
-    """)
-    
-    if st.button("Lấy thông tin lớp học"):
-        st.write(f"Tổng số thành viên trong dữ liệu: {len(labels_dict)} bạn")
