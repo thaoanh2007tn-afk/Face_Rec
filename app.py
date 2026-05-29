@@ -13,8 +13,8 @@ st.set_page_config(page_title="Hệ thống Nhận diện", layout="wide")
 # Tải model và labels
 @st.cache_resource
 def load_model_and_labels():
-    model = tf.keras.models.load_model('face_recognition_model.h5')
-    with open('labels.json', 'r') as f:
+    model = tf.keras.models.load_model('face_recognition_model2.h5')
+    with open('labels2.json', 'r') as f:
         labels = json.load(f)
     return model, labels
 
