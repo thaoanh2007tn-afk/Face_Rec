@@ -1,30 +1,32 @@
-import cv2
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
+import cv2
 import numpy as np
-import os
 import tensorflow as tf
 import json
 
-# 1. Cấu hình trang rộng để có chỗ chứa cột bên phải
-st.set_page_config(page_title="Hệ thống Nhận diện", layout="wide")
+# 1. Cấu hình layout RỘNG (Wide) để có chỗ cho thẻ hướng dẫn bên phải
+st.set_page_config(page_title="Face Recognition AI", layout="wide")
 
-# --- PHẦN GIỮ NGUYÊN TỪ FILE APP (1) ---
-# Tải model và labels
+# --- PHẦN GIỮ NGUYÊN HOÀN TOÀN TỪ APP (1).PY ---
+
+# Load đúng tên file model2 và labels2 như bản gốc của bạn
 @st.cache_resource
-def load_model_and_labels():
-    model = tf.keras.models.load_model('face_recognition_model2.h5')
+def load_system():
+    # Sửa lại đúng tên file có số 2 để hết lỗi FileNotFoundError
+    model = tf.keras.models.load_model("face_recognition_model2.h5")
     with open('labels2.json', 'r') as f:
         labels = json.load(f)
-    return model, labels
+    class_names = list(labels.keys())
+    return model, class_names
 
-model, labels = load_model_and_labels()
-class_names = list(labels.keys())
+model, class_names = load_system()
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
-class VideoTransformer(VideoTransformerBase):
+class FaceRecognitionTransformer(VideoTransformerBase):
     def transform(self, frame):
         img = frame.to_ndarray(format="bgr24")
+        img = cv2.flip(img, 1)
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         faces = face_cascade.detectMultiScale(gray, 1.1, 4)
 
@@ -36,50 +38,48 @@ class VideoTransformer(VideoTransformerBase):
 
             prediction = model.predict(roi_color)
             index = np.argmax(prediction)
-            name = class_names[index]
             confidence = np.max(prediction)
-
+            
+            name = "Unknown"
             if confidence > 0.8:
-                label = f"{name} ({confidence*100:.1f}%)"
-            else:
-                label = "Unknown"
+                name = class_names[index]
 
             cv2.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 2)
-            cv2.putText(img, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-
+            cv2.putText(img, f"{name} ({confidence*100:.1f}%)", (x, y-10), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
         return img
 
-# --- PHẦN GIAO DIỆN MỚI (CHIA CỘT) ---
-def main():
-    st.title("Hệ thống Nhận diện Khuôn mặt Real-time")
-    st.write("---")
+# --- PHẦN GIAO DIỆN CHIA CỘT ---
 
-    # Chia màn hình thành 2 cột: Cột trái (70%) cho Cam, Cột phải (30%) cho Hướng dẫn
-    col_left, col_right = st.columns([0.7, 0.3])
+st.title("Hệ thống Nhận diện Khuôn mặt Real-time")
+st.write("---")
 
-    with col_left:
-        st.subheader("📸 Camera")
-        # Giữ nguyên y hệt cách gọi webrtc_streamer của file app (1)
-        webrtc_streamer(
-            key="example", 
-            video_transformer_factory=VideoTransformer
-        )
+# Chia cột: Cột trái cho Cam, Cột phải cho Hướng dẫn
+col_cam, col_guide = st.columns([2, 1])
 
-    with col_right:
-        st.subheader("💡 Hướng dẫn")
-        # Thẻ hướng dẫn được trang trí bằng markdown
-        st.info("""
+with col_cam:
+    st.subheader("📸 Camera")
+    # Giữ nguyên key="example" như file app(1) để cam load ổn định
+    webrtc_streamer(
+        key="example", 
+        video_transformer_factory=FaceRecognitionTransformer,
+        media_stream_constraints={"video": True, "audio": False}
+    )
+
+with col_guide:
+    st.subheader("📖 Hướng dẫn sử dụng")
+    # Tạo thẻ hướng dẫn bằng container có viền cho đẹp
+    with st.container(border=True):
+        st.markdown("""
         **Các bước thực hiện:**
-        1. Nhấn nút **START** ở khung camera để bắt đầu.
-        2. Cho phép trình duyệt truy cập vào Camera của bạn.
-        3. Đảm bảo khuôn mặt nằm trong khung hình và đủ ánh sáng.
+        1. Nhấn nút **START** để mở camera.
+        2. Cho phép trình duyệt truy cập Camera.
+        3. Đưa khuôn mặt vào giữa khung hình.
         
         **Lưu ý:**
-        * Nếu hệ thống hiện **Unknown**, hãy thử điều chỉnh góc mặt.
-        * Đảm bảo file `face_recognition_model.h5` và `labels.json` nằm cùng thư mục code.
+        * Khoảng cách tốt nhất là từ 0.5m - 1m.
+        * Đảm bảo ánh sáng chiếu thẳng vào mặt.
+        * Nếu camera không hiện, hãy nhấn F5 để tải lại trang.
         """)
         
-        st.warning("⚠️ Nếu Camera không hiện, hãy tải lại trang (F5).")
-
-if __name__ == "__main__":
-    main()
+        st.info("💡 Hệ thống đang sử dụng model CNN huấn luyện trên tập dữ liệu lớp DA0001.")
