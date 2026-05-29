@@ -45,7 +45,6 @@ class FaceRecognitionTransformer(VideoTransformerBase):
         return img
 
 st.title("Hệ thống Nhận diện Khuôn mặt Lớp DA0001")
-webrtc_streamer(key="example", video_transformer_factory=FaceRecognitionTransformer)
 st.write("---")
 
 # Chia cột: Cột trái cho Cam, Cột phải cho Hướng dẫn
@@ -54,12 +53,7 @@ col_cam, col_guide = st.columns([2, 1])
 with col_cam:
     st.subheader("📸 Camera")
     # Giữ nguyên key="example" như file app(1) để cam load ổn định
-    webrtc_streamer(
-        key="example", 
-        video_transformer_factory=FaceRecognitionTransformer,
-        media_stream_constraints={"video": True, "audio": False}
-    )
-
+    webrtc_streamer(key="example", video_transformer_factory=FaceRecognitionTransformer)
 with col_guide:
     st.subheader("📖 Hướng dẫn sử dụng")
     # Tạo thẻ hướng dẫn bằng container có viền cho đẹp
