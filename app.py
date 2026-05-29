@@ -43,7 +43,7 @@ class FaceRecognitionTransformer(VideoTransformerBase):
 
         return img
 
-st.title("Hệ thống Nhận diện Khuôn mặt Lớp DA0001")
+st.title("   Hệ thống Nhận diện Khuôn mặt Lớp DA0001")
 st.write("---")
 
 
