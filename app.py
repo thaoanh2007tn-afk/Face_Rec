@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 import json
 
-st.set_page_config(page_title="Face Recognition AI", layout="wide"
+st.set_page_config(page_title="Face Recognition AI", layout="wide")
 
 model = tf.keras.models.load_model("face_recognition_model2.h5")
 with open('labels2.json', 'r') as f:
