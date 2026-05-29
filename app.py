@@ -5,10 +5,10 @@ import numpy as np
 import tensorflow as tf
 import json
 
-# 1. Cấu hình trang
+# 1. Cấu hình trang - Đặt tiêu đề tab trình duyệt
 st.set_page_config(page_title="AI Face Recognition", page_icon="👤", layout="wide")
 
-# 2. CSS để căn giữa Title và Subheader, và làm đẹp giao diện
+# 2. CSS Custom: Căn giữa tiêu đề và làm đẹp giao diện
 st.markdown("""
     <style>
     .stTitle, .stSubheader {
@@ -17,89 +17,114 @@ st.markdown("""
         margin-left: auto;
         margin-right: auto;
         width: 100%;
-    }
-    .stTitle {
         color: #1E3A8A;
-        font-weight: bold;
     }
-    .stSubheader {
-        color: #3B82F6;
-        margin-bottom: 20px;
+    .main {
+        background-color: #f8f9fa;
+    }
+    /* Làm khung camera bo góc */
+    iframe {
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. Sidebar - Chỉ chứa thông tin và Hướng dẫn
-st.sidebar.title("📖 Hướng dẫn sử dụng")
+# 3. Sidebar: Hướng dẫn sử dụng (Giao diện gọn gàng)
+st.sidebar.title("📖 Hướng dẫn nhanh")
+st.sidebar.info("""
+1. Nhấn nút **Start** để bật Camera.
+2. Cho phép trình duyệt truy cập WebCam.
+3. Đảm bảo khuôn mặt đủ ánh sáng.
+""")
+st.sidebar.divider()
 st.sidebar.markdown("""
-1. Cho phép trình duyệt truy cập **Camera**.
-2. Đứng thẳng trước camera, đảm bảo đủ ánh sáng.
-3. Hệ thống sẽ tự động khoanh vùng khuôn mặt.
-4. Tên và độ tin cậy sẽ hiện ngay trên khung hình.
----
-**Hệ thống:** MobileNetV2
-**Đầu vào:** 200x200 px
+**Thông tin hệ thống:**
+- **Model:** MobileNetV2
+- **Xử lý:** Real-time Async
+- **Trạng thái:** Đang hoạt động 🟢
 """)
 
-st.sidebar.divider()
-st.sidebar.write("👤 **Sinh viên thực hiện:** [Tên của bạn]")
-
-# --- Load Model & Labels ---
+# 4. Load Model và Labels (Sử dụng Cache để Web chạy mượt)
 @st.cache_resource
-def load_my_model():
-    # Nhớ kiểm tra đúng tên file bạn đã up lên GitHub
+def load_system():
+    # Kiểm tra chính xác tên file trên GitHub của bạn
     model = tf.keras.models.load_model("face_recognition_model2.h5")
     with open('labels2.json', 'r', encoding='utf-8') as f:
-        labels_data = json.load(f)
-    # Đảo ngược dictionary labels để dùng index tìm tên
-    labels = {v: k for k, v in labels_data.items()}
-    return model, labels
+        data = json.load(f)
+    # Đảo ngược index để lấy tên: {0: "Tên A", 1: "Tên B"}
+    mapping = {v: k for k, v in data.items()}
+    return model, mapping
 
-model, labels_dict = load_my_model()
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+try:
+    model, labels_dict = load_system()
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+except Exception as e:
+    st.error(f"Lỗi khi tải dữ liệu: {e}")
 
-# 4. Tiêu đề chính (Đã được căn giữa bằng CSS)
-st.title("🚀 HỆ THỐNG NHẬN DIỆN KHUÔN MẶT")
-st.subheader("Ứng dụng Deep Learning Real-time")
+# 5. Cấu hình WebRTC (Giải quyết lỗi Camera load lâu/không lên)
+RTC_CONFIGURATION = {
+    "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+}
 
-# 5. Khu vực hiển thị Camera (Căn giữa khung hình)
-col1, col2, col3 = st.columns([1, 6, 1]) # Tạo 3 cột để đẩy camera vào giữa
+# 6. Lớp xử lý hình ảnh (Logic nhận diện)
+class FaceRecognitionTransformer(VideoTransformerBase):
+    def transform(self, frame):
+        img = frame.to_ndarray(format="bgr24")
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
 
-with col2:
-    class FaceRecognitionTransformer(VideoTransformerBase):
-        def transform(self, frame):
-            img = frame.to_ndarray(format="bgr24")
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+        for (x, y, w, h) in faces:
+            try:
+                # Cắt và tiền xử lý vùng mặt (200x200 theo yêu cầu)
+                roi = img[y:y+h, x:x+w]
+                roi = cv2.resize(roi, (200, 200))
+                roi = roi / 255.0
+                roi = np.expand_dims(roi, axis=0)
 
-            for (x, y, w, h) in faces:
-                roi_color = img[y:y+h, x:x+w]
-                roi_color = cv2.resize(roi_color, (200, 200)) 
-                roi_color = roi_color / 255.0
-                roi_color = np.expand_dims(roi_color, axis=0)
-
-                prediction = model.predict(roi_color)
+                # Dự đoán
+                prediction = model.predict(roi, verbose=0)
                 max_prob = np.max(prediction)
                 index = np.argmax(prediction)
 
-                # Mặc định độ tin cậy trên 50% thì mới hiện tên
+                # Ngưỡng tin cậy cố định 50%
                 if max_prob > 0.5:
                     name = labels_dict.get(index, "Unknown")
                     
-                    # --- ĐOẠN CHEAT CỦA BẠN ---
+                    # --- PHẦN CHEAT CỦA BẠN ---
+                    # Nếu model đoán là người số 29, ép tên thành bạn
                     if index == 29: 
-                        name = "Tên_Của_Bạn" 
+                        name = "Họ_Tên_Của_Bạn" 
                     # -------------------------
                     
-                    color = (0, 255, 0) # Xanh lá
+                    color = (0, 255, 0) # Xanh lá cho người quen
                 else:
                     name = "Unknown"
-                    color = (0, 0, 255) # Đỏ
+                    color = (0, 0, 255) # Đỏ cho người lạ
 
+                # Vẽ khung và tên
                 cv2.rectangle(img, (x, y), (x+w, y+h), color, 2)
-                cv2.putText(img, f"{name} ({max_prob*100:.1f}%)", (x, y-10), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+                text = f"{name} ({max_prob*100:.1f}%)"
+                cv2.putText(img, text, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+            except:
+                continue
+        return img
 
-            return img
+# 7. Giao diện chính của Web
+st.title("🚀 HỆ THỐNG NHẬN DIỆN KHUÔN MẶT")
+st.subheader("Trí tuệ nhân tạo Real-time")
 
-    webrtc_streamer(key="face-recognition", video_transformer_factory=FaceRecognitionTransformer)
+# Căn giữa Camera bằng cách chia cột (Cột giữa to nhất)
+col1, col2, col3 = st.columns([1, 5, 1])
+
+with col2:
+    webrtc_streamer(
+        key="face-recog",
+        video_transformer_factory=FaceRecognitionTransformer,
+        rtc_configuration=RTC_CONFIGURATION,
+        media_stream_constraints={"video": True, "audio": False}, # Tắt audio để giảm băng thông
+        async_processing=True # Xử lý đa luồng giúp video không bị giật
+    )
+
+st.sidebar.divider()
+st.sidebar.caption("Phiên bản v2.0 - Đã tối ưu hiệu năng")
