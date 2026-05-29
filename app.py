@@ -44,5 +44,5 @@ class FaceRecognitionTransformer(VideoTransformerBase):
 
         return img
 
-st.title("Hệ thống Nhận diện Khuôn mặt Lớp học")
+st.title("Hệ thống Nhận diện Khuôn mặt Lớp DA0001")
 webrtc_streamer(key="example", video_transformer_factory=FaceRecognitionTransformer)
